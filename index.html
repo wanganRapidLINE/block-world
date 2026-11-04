@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <meta name="theme-color" content="#0b0c1c" />
+    <meta name="description" content="ワールドルール準拠の落ちものパズル（SRS・HOLD・T-Spin対応）" />
+    <link rel="icon" href="./icon.svg" type="image/svg+xml" />
+    <title>Block World</title>
+  </head>
+  <body>
+    <div id="app">
+      <div id="stage">
+        <canvas id="screen"></canvas>
+        <div id="overlay">
+          <h1 id="overlay-title">BLOCK WORLD</h1>
+          <p id="overlay-sub"></p>
+          <div id="overlay-buttons"></div>
+          <p id="overlay-hint">Enter / Options(+)ボタン でも開始できます</p>
+        </div>
+        <div id="toast" hidden></div>
+      </div>
+
+      <div id="touchpad" hidden>
+        <div class="pad-left">
+          <button data-action="hardDrop" class="dpad up" aria-label="ハードドロップ">▲</button>
+          <button data-action="left" class="dpad left" aria-label="左">◀</button>
+          <button data-action="right" class="dpad right" aria-label="右">▶</button>
+          <button data-action="softDrop" class="dpad down" aria-label="ソフトドロップ">▼</button>
+        </div>
+        <div class="pad-center">
+          <button data-action="pause" class="small" aria-label="ポーズ">II</button>
+        </div>
+        <div class="pad-right">
+          <button data-action="hold" class="face hold">HOLD</button>
+          <button data-action="rotateCCW" class="face ccw" aria-label="左回転">↺</button>
+          <button data-action="rotateCW" class="face cw" aria-label="右回転">↻</button>
+        </div>
+      </div>
+
+      <div id="settings" hidden>
+        <div class="settings-body">
+          <h2>設定</h2>
+          <p class="note">「＋」を押してからキーまたはパッドのボタンを押すと追加されます。登録済みの項目をクリックすると削除します。</p>
+          <div id="pad-status" class="note"></div>
+          <table id="bind-table"></table>
+          <div class="row">
+            <label for="das">DAS（長押しで連続移動が始まるまで）<span id="das-val"></span></label>
+            <input id="das" type="range" min="50" max="300" step="1" />
+          </div>
+          <div class="row">
+            <label for="arr">ARR（連続移動の間隔、0で壁まで一気に）<span id="arr-val"></span></label>
+            <input id="arr" type="range" min="0" max="100" step="1" />
+          </div>
+          <div class="row check">
+            <label><input id="bgm-enabled" type="checkbox" /> BGMを流す（OFFにすると、自分の好きな音楽をかけながら遊べます）</label>
+          </div>
+          <div class="row">
+            <label for="bgm-volume">BGMの音量<span id="bgm-volume-val"></span></label>
+            <input id="bgm-volume" type="range" min="0" max="100" step="5" />
+          </div>
+          <div class="row check">
+            <label><input id="sfx-enabled" type="checkbox" /> 効果音を鳴らす</label>
+          </div>
+          <div class="row">
+            <label for="sfx-volume">効果音の音量<span id="sfx-volume-val"></span></label>
+            <input id="sfx-volume" type="range" min="0" max="100" step="5" />
+          </div>
+          <div class="row">
+            <label for="touchpad-mode">仮想パッド</label>
+            <select id="touchpad-mode">
+              <option value="auto">自動（タッチ画面でパッド未接続のとき表示）</option>
+              <option value="show">常に表示</option>
+              <option value="hide">常に隠す</option>
+            </select>
+          </div>
+          <div id="capture-msg" hidden></div>
+          <div class="buttons">
+            <button id="settings-reset">初期値に戻す</button>
+            <button id="settings-close" class="primary">閉じる</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
