@@ -12,8 +12,10 @@ export const MAX_LEVEL = 15;
 export const LINES_PER_LEVEL = 10;
 /** ライン消去の演出時間。この間はゲームの進行が止まる */
 export const LINE_CLEAR_MS = 400;
+/** マラソンのクリア条件 */
+export const MARATHON_LINES = 150;
 
-export type GameStatus = 'playing' | 'gameover';
+export type GameStatus = 'playing' | 'gameover' | 'cleared';
 
 export interface ClearEvent {
   lines: number;
@@ -47,11 +49,14 @@ export type GameEvent =
   /** ラインを消さなかった T-Spin */
   | { type: 'tspin' }
   | { type: 'levelUp'; level: number }
-  | { type: 'gameOver' };
+  | { type: 'gameOver' }
+  | { type: 'gameClear' };
 
 export interface GameOptions {
   rng?: () => number;
   startLevel?: number;
+  /** このライン数に届いたらクリア。null ならエンドレス */
+  goalLines?: number | null;
   /** false にすると最初のミノを出さない（テスト用） */
   autoStart?: boolean;
 }
@@ -71,6 +76,9 @@ export class Game {
   b2b = false;
   lastClear: ClearEvent | null = null;
   lastHardDrop: HardDropTrail | null = null;
+  /** プレイ時間（ポーズ中は進まない） */
+  playTimeMs = 0;
+  readonly goalLines: number | null;
 
   /** 直前の回転で何番目のキックを使ったか（T-Spin Mini の例外判定用） */
   lastKickIndex = 0;
@@ -95,6 +103,7 @@ export class Game {
     this.bag = new SevenBag(opts.rng);
     this.startLevel = opts.startLevel ?? 1;
     this.level = this.startLevel;
+    this.goalLines = opts.goalLines ?? null;
     this.fillQueue();
     if (opts.autoStart !== false) this.spawnNext();
   }
@@ -242,6 +251,7 @@ export class Game {
   // ─── 時間経過 ───
 
   update(dtMs: number): void {
+    if (this.status === 'playing') this.playTimeMs += dtMs;
     if (this.status === 'playing' && this.clearing) {
       this.clearing.elapsed += dtMs;
       if (this.clearing.elapsed >= LINE_CLEAR_MS) this.finishClear();
@@ -350,6 +360,11 @@ export class Game {
   private finishClear(): void {
     this.board.clearLines();
     this.clearing = null;
+    if (this.goalLines !== null && this.lines >= this.goalLines) {
+      this.status = 'cleared';
+      this.events.push({ type: 'gameClear' });
+      return;
+    }
     this.holdUsed = false;
     this.spawnNext();
   }

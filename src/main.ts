@@ -1,9 +1,9 @@
 import './style.css';
 import { Bgm } from './audio/bgm';
 import { Sfx } from './audio/sfx';
-import { Game } from './core/game';
+import { Game, MARATHON_LINES } from './core/game';
 import { InputHub, type InputFrame } from './input/actions';
-import { loadSettings } from './input/bindings';
+import { loadSettings, saveSettings, type GameMode } from './input/bindings';
 import { HorizontalRepeater } from './input/das';
 import { connectedPads, GamepadSource } from './input/gamepad';
 import { KeyboardSource } from './input/keyboard';
@@ -11,7 +11,7 @@ import { TouchSource } from './input/touch';
 import { Renderer } from './render/renderer';
 import { SettingsScreen } from './ui/settings';
 
-type Screen = 'title' | 'playing' | 'paused' | 'gameover';
+type Screen = 'title' | 'playing' | 'paused' | 'gameover' | 'cleared';
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 
@@ -20,6 +20,7 @@ const overlay = $('overlay');
 const overlayTitle = $('overlay-title');
 const overlaySub = $('overlay-sub');
 const overlayButtons = $('overlay-buttons');
+const overlayHint = $('overlay-hint');
 const touchpad = $('touchpad');
 const toast = $('toast');
 
@@ -69,6 +70,8 @@ interface MenuButton {
 
 function showOverlay(title: string, sub: string, buttons: MenuButton[]): void {
   overlayTitle.textContent = title;
+  overlayHint.textContent =
+    screen === 'title' ? '十字キー左右でモード選択、Enter / Options(+)ボタン で開始' : 'Enter / Options(+)ボタン でも決定できます';
   overlaySub.textContent = sub;
   overlayButtons.replaceChildren(
     ...buttons.map((b) => {
@@ -84,17 +87,47 @@ function showOverlay(title: string, sub: string, buttons: MenuButton[]): void {
 
 const settingsButton: MenuButton = { label: '設定', onClick: () => settingsScreen.open() };
 
+const MODES: { mode: GameMode; label: string }[] = [
+  { mode: 'marathon', label: `マラソン（${MARATHON_LINES}ライン）` },
+  { mode: 'endless', label: 'エンドレス' },
+];
+
 function toTitle(): void {
   screen = 'title';
-  const buttons: MenuButton[] = [{ label: 'スタート', primary: true, onClick: startGame }, settingsButton];
+  const buttons: MenuButton[] = MODES.map((m) => ({
+    label: m.label,
+    primary: m.mode === settings.mode,
+    onClick: () => startGame(m.mode),
+  }));
+  buttons.push(settingsButton);
   if (document.fullscreenEnabled && !document.fullscreenElement) {
     buttons.push({ label: '全画面にする', onClick: () => void document.documentElement.requestFullscreen().catch(() => {}) });
   }
   showOverlay('BLOCK WORLD', '', buttons);
 }
 
-function startGame(): void {
-  game = new Game();
+/** タイトル画面で十字キー左右（←→キー）を押したらモードを切り替える */
+function cycleMode(dir: number): void {
+  const i = MODES.findIndex((m) => m.mode === settings.mode);
+  settings.mode = MODES[(i + dir + MODES.length) % MODES.length].mode;
+  saveSettings(settings);
+  toTitle();
+}
+
+/** 分:秒.1/100秒 */
+function formatTime(ms: number): string {
+  const cs = Math.floor(ms / 10);
+  const m = Math.floor(cs / 6000);
+  const sec = Math.floor((cs % 6000) / 100);
+  return `${m}:${String(sec).padStart(2, '0')}.${String(cs % 100).padStart(2, '0')}`;
+}
+
+function startGame(mode: GameMode = settings.mode): void {
+  if (settings.mode !== mode) {
+    settings.mode = mode;
+    saveSettings(settings);
+  }
+  game = new Game({ goalLines: mode === 'marathon' ? MARATHON_LINES : null });
   // 開発サーバーのときだけ、動作確認用にゲームを外から触れるようにする（本番ビルドには含まれない）
   if (import.meta.env.DEV) (window as unknown as { __game: Game }).__game = game;
   repeater.reset();
@@ -111,7 +144,8 @@ function pauseGame(): void {
   bgm.pause();
   showOverlay('PAUSE', '', [
     { label: '再開', primary: true, onClick: resumeGame },
-    { label: '最初からやり直す', onClick: startGame },
+    { label: '最初からやり直す', onClick: () => startGame() },
+    { label: 'タイトルへ', onClick: toTitle },
     settingsButton,
   ]);
 }
@@ -125,12 +159,16 @@ function resumeGame(): void {
   void requestWakeLock();
 }
 
-function toGameOver(): void {
-  screen = 'gameover';
-  bgm.stop();
+/** ゲームオーバー・クリアの結果画面 */
+function toResult(): void {
   const g = game!;
-  showOverlay('GAME OVER', `SCORE ${g.score}\nLINES ${g.lines} / LEVEL ${g.level}`, [
-    { label: 'もう一度', primary: true, onClick: startGame },
+  const cleared = g.status === 'cleared';
+  screen = cleared ? 'cleared' : 'gameover';
+  bgm.stop();
+  const sub = `SCORE ${g.score}\nLINES ${g.lines} / LEVEL ${g.level}\nTIME ${formatTime(g.playTimeMs)}`;
+  showOverlay(cleared ? 'GAME CLEAR' : 'GAME OVER', sub, [
+    { label: 'もう一度', primary: true, onClick: () => startGame() },
+    { label: 'タイトルへ', onClick: toTitle },
     settingsButton,
   ]);
   void releaseWakeLock();
@@ -138,7 +176,7 @@ function toGameOver(): void {
 
 /** オーバーレイ表示中に「ポーズ/決定」が押されたときの動作 */
 function confirmAction(): void {
-  if (screen === 'title' || screen === 'gameover') startGame();
+  if (screen === 'title' || screen === 'gameover' || screen === 'cleared') startGame();
   else if (screen === 'paused') resumeGame();
 }
 
@@ -180,9 +218,11 @@ function frame(now: number): void {
       applyInput(game, f, dt);
       if (screen === 'playing') game.update(dt);
       sfx.playEvents(game.drainEvents());
-      if (game.status === 'gameover') toGameOver();
+      if (game.status !== 'playing') toResult();
     } else if (f.pressed.has('pause')) {
       confirmAction();
+    } else if (screen === 'title' && (f.pressed.has('left') || f.pressed.has('right'))) {
+      cycleMode(f.pressed.has('left') ? -1 : 1);
     }
   }
 

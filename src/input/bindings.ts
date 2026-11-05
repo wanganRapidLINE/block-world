@@ -6,6 +6,9 @@ export type PadBinding =
 
 export type TouchPadMode = 'auto' | 'show' | 'hide';
 
+/** marathon: 150ラインでクリア / endless: 終わりなし */
+export type GameMode = 'marathon' | 'endless';
+
 export interface Settings {
   /** キーの識別子（keyIdOf）の配列 */
   keys: Record<Action, string[]>;
@@ -20,6 +23,8 @@ export interface Settings {
   sfxEnabled: boolean;
   /** 効果音の音量 0〜100 */
   sfxVolume: number;
+  /** 最後に選んだモード */
+  mode: GameMode;
 }
 
 const btn = (index: number): PadBinding => ({ kind: 'button', index });
@@ -56,6 +61,7 @@ export function defaultSettings(): Settings {
     bgmVolume: 60,
     sfxEnabled: true,
     sfxVolume: 60,
+    mode: 'marathon',
   };
 }
 
@@ -82,6 +88,7 @@ export function loadSettings(): Settings {
     if (typeof saved.bgmVolume === 'number' && saved.bgmVolume >= 0 && saved.bgmVolume <= 100) {
       base.bgmVolume = saved.bgmVolume;
     }
+    if (saved.mode === 'marathon' || saved.mode === 'endless') base.mode = saved.mode;
     if (saved.touchPad === 'auto' || saved.touchPad === 'show' || saved.touchPad === 'hide') {
       base.touchPad = saved.touchPad;
     }

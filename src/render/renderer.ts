@@ -312,7 +312,7 @@ export class Renderer {
     const { ctx, cell } = this;
     const rows: [string, string][] = [
       ['SCORE', String(game?.score ?? 0)],
-      ['LINES', String(game?.lines ?? 0)],
+      ['LINES', game?.goalLines ? `${game.lines}/${game.goalLines}` : String(game?.lines ?? 0)],
       ['LEVEL', String(game?.level ?? 1)],
     ];
     let uy = LAYOUT.bufferRows + 4.2;

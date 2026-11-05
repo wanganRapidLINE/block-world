@@ -99,6 +99,11 @@ export class Sfx {
       case 'levelUp':
         this.arpeggio(0.15, [G5, B5, D6, G6], 0.08, 'triangle', 0.3);
         break;
+      case 'gameClear':
+        // ド・ミ・ソ・ドと駆け上がって、最後に和音を長めに鳴らす
+        this.arpeggio(0.05, [C5, E5, G5, C6, E6, G6], 0.09, 'triangle', 0.32);
+        this.chord(0.6, [C5, E5, G5, C6], 1.2, 0.07);
+        break;
       case 'gameOver':
         this.arpeggio(0, [C5, 493.88, 440, 392, 349.23, 329.63, 293.66, 261.63], 0.11, 'triangle', 0.35);
         break;
