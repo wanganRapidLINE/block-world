@@ -300,8 +300,9 @@ export class Renderer {
    */
   private drawNext(game: Game | null): void {
     const top = LAYOUT.bufferRows;
-    const FIRST = { h: 3.5, scale: 0.9 };
-    const REST = { h: 2.4, scale: 0.68 };
+    // 1個目はフィールドと同じ大きさ。I（4マス）でも枠に収まるよう、1個目の枠は余白を詰める
+    const FIRST = { h: 3.2, scale: 1, inset: 0.1 };
+    const REST = { h: 2.4, scale: 0.68, inset: 0.22 };
     const GAP = 0.25;
     const count = game ? game.next.length : 5;
     const slots = Array.from({ length: count }, (_, i) => (i === 0 ? FIRST : REST));
@@ -309,11 +310,10 @@ export class Renderer {
     this.panel(LAYOUT.nextX, top, LAYOUT.sideW, totalH, 'NEXT');
 
     const { ctx, cell } = this;
-    const inset = 0.22;
     let uy = top + 0.95;
     slots.forEach((sl, i) => {
       ctx.fillStyle = THEME.field;
-      roundRect(ctx, this.px(LAYOUT.nextX + inset), this.py(uy), (LAYOUT.sideW - inset * 2) * cell, sl.h * cell, cell * 0.2);
+      roundRect(ctx, this.px(LAYOUT.nextX + sl.inset), this.py(uy), (LAYOUT.sideW - sl.inset * 2) * cell, sl.h * cell, cell * 0.2);
       ctx.fill();
       const type = game?.next[i];
       if (type) this.miniPiece(type, LAYOUT.nextX, uy, LAYOUT.sideW, sl.h, sl.scale, 1);
