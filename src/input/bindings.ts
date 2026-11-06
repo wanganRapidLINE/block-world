@@ -1,3 +1,4 @@
+import { MAX_LEVEL } from '../core/game';
 import { ACTIONS, type Action } from './actions';
 
 export type PadBinding =
@@ -25,6 +26,8 @@ export interface Settings {
   sfxVolume: number;
   /** 最後に選んだモード */
   mode: GameMode;
+  /** エンドレスの開始レベル 1〜15 */
+  startLevel: number;
 }
 
 const btn = (index: number): PadBinding => ({ kind: 'button', index });
@@ -62,6 +65,7 @@ export function defaultSettings(): Settings {
     sfxEnabled: true,
     sfxVolume: 60,
     mode: 'marathon',
+    startLevel: 1,
   };
 }
 
@@ -89,6 +93,9 @@ export function loadSettings(): Settings {
       base.bgmVolume = saved.bgmVolume;
     }
     if (saved.mode === 'marathon' || saved.mode === 'endless') base.mode = saved.mode;
+    if (Number.isInteger(saved.startLevel) && saved.startLevel! >= 1 && saved.startLevel! <= MAX_LEVEL) {
+      base.startLevel = saved.startLevel!;
+    }
     if (saved.touchPad === 'auto' || saved.touchPad === 'show' || saved.touchPad === 'hide') {
       base.touchPad = saved.touchPad;
     }

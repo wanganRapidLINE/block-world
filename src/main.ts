@@ -1,7 +1,7 @@
 import './style.css';
 import { Bgm } from './audio/bgm';
 import { Sfx } from './audio/sfx';
-import { Game, MARATHON_LINES } from './core/game';
+import { Game, MARATHON_LINES, MAX_LEVEL } from './core/game';
 import { InputHub, type InputFrame } from './input/actions';
 import { loadSettings, saveSettings, type GameMode } from './input/bindings';
 import { HorizontalRepeater } from './input/das';
@@ -71,7 +71,8 @@ interface MenuButton {
 function showOverlay(title: string, sub: string, buttons: MenuButton[]): void {
   overlayTitle.textContent = title;
   overlayHint.textContent =
-    screen === 'title' ? '十字キー左右でモード選択、Enter / Options(+)ボタン で開始' : 'Enter / Options(+)ボタン でも決定できます';
+    screen === 'title'
+      ? '十字キー左右でモード選択（エンドレスは上下で開始レベル）\nEnter / Options(+)ボタン で開始' : 'Enter / Options(+)ボタン でも決定できます';
   overlaySub.textContent = sub;
   overlayButtons.replaceChildren(
     ...buttons.map((b) => {
@@ -104,6 +105,35 @@ function toTitle(): void {
     buttons.push({ label: '全画面にする', onClick: () => void document.documentElement.requestFullscreen().catch(() => {}) });
   }
   showOverlay('BLOCK WORLD', '', buttons);
+  if (settings.mode === 'endless') {
+    // エンドレスのボタンの直後に開始レベルの選択を差し込む
+    overlayButtons.children[1].after(levelSelector());
+  }
+}
+
+/** 「開始レベル − 5 ＋」の行 */
+function levelSelector(): HTMLElement {
+  const row = document.createElement('div');
+  row.className = 'level-row';
+  const minus = document.createElement('button');
+  minus.textContent = '−';
+  minus.setAttribute('aria-label', '開始レベルを下げる');
+  minus.addEventListener('click', () => changeStartLevel(-1));
+  const plus = document.createElement('button');
+  plus.textContent = '＋';
+  plus.setAttribute('aria-label', '開始レベルを上げる');
+  plus.addEventListener('click', () => changeStartLevel(1));
+  const label = document.createElement('span');
+  label.textContent = `開始レベル ${settings.startLevel}`;
+  row.append(minus, label, plus);
+  return row;
+}
+
+/** 開始レベルを上下する（1〜15。端まで行ったら反対側へ回る） */
+function changeStartLevel(dir: number): void {
+  settings.startLevel = ((settings.startLevel - 1 + dir + MAX_LEVEL) % MAX_LEVEL) + 1;
+  saveSettings(settings);
+  toTitle();
 }
 
 /** タイトル画面で十字キー左右（←→キー）を押したらモードを切り替える */
@@ -127,7 +157,10 @@ function startGame(mode: GameMode = settings.mode): void {
     settings.mode = mode;
     saveSettings(settings);
   }
-  game = new Game({ goalLines: mode === 'marathon' ? MARATHON_LINES : null });
+  game =
+    mode === 'marathon'
+      ? new Game({ goalLines: MARATHON_LINES })
+      : new Game({ goalLines: null, startLevel: settings.startLevel });
   // 開発サーバーのときだけ、動作確認用にゲームを外から触れるようにする（本番ビルドには含まれない）
   if (import.meta.env.DEV) (window as unknown as { __game: Game }).__game = game;
   repeater.reset();
@@ -223,6 +256,9 @@ function frame(now: number): void {
       confirmAction();
     } else if (screen === 'title' && (f.pressed.has('left') || f.pressed.has('right'))) {
       cycleMode(f.pressed.has('left') ? -1 : 1);
+    } else if (screen === 'title' && settings.mode === 'endless' && (f.pressed.has('hardDrop') || f.pressed.has('softDrop'))) {
+      // 十字キー上下 = ハードドロップ／ソフトドロップの割り当て
+      changeStartLevel(f.pressed.has('hardDrop') ? 1 : -1);
     }
   }
 

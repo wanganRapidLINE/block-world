@@ -54,3 +54,17 @@ describe('マラソン（150ラインでクリア）', () => {
     expect(game.playTimeMs).toBe(1000 + LINE_CLEAR_MS);
   });
 });
+
+describe('エンドレスの開始レベル', () => {
+  it('選んだレベルから始まり、10ラインごとに上がって15で止まる', () => {
+    const game = new Game({ autoStart: false, startLevel: 10 });
+    expect(game.level).toBe(10);
+    game.lines = 6;
+    clearWithI(game, 4);
+    expect(game.level).toBe(11);
+    game.update(LINE_CLEAR_MS);
+    game.lines = 96;
+    clearWithI(game, 4);
+    expect(game.level).toBe(15);
+  });
+});

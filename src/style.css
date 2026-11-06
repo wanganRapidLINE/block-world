@@ -86,6 +86,22 @@ body {
 #overlay-hint {
   color: var(--dim);
   font-size: 12px;
+  white-space: pre-line;
+}
+.level-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.level-row button {
+  width: 44px;
+  padding: 6px 0;
+  font-size: 18px;
+}
+.level-row span {
+  flex: 1;
+  font-weight: bold;
 }
 
 button {

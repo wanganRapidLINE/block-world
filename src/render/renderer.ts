@@ -294,15 +294,30 @@ export class Renderer {
     }
   }
 
+  /**
+   * NEXT。1個目は大きな枠、2個目以降は小さめの枠に1個ずつ入れる。
+   * 枠の高さとミノの大きさ（cell に対する倍率）
+   */
   private drawNext(game: Game | null): void {
     const top = LAYOUT.bufferRows;
-    const slotH = 2.5;
+    const FIRST = { h: 3.5, scale: 0.9 };
+    const REST = { h: 2.4, scale: 0.68 };
+    const GAP = 0.25;
     const count = game ? game.next.length : 5;
-    this.panel(LAYOUT.nextX, top, LAYOUT.sideW, 1 + slotH * count + 0.3, 'NEXT');
-    if (!game) return;
-    game.next.forEach((type, i) => {
-      const scale = i === 0 ? 0.72 : 0.6;
-      this.miniPiece(type, LAYOUT.nextX, top + 0.9 + i * slotH, LAYOUT.sideW, slotH, scale, 1);
+    const slots = Array.from({ length: count }, (_, i) => (i === 0 ? FIRST : REST));
+    const totalH = 0.95 + slots.reduce((sum, sl) => sum + sl.h + GAP, 0);
+    this.panel(LAYOUT.nextX, top, LAYOUT.sideW, totalH, 'NEXT');
+
+    const { ctx, cell } = this;
+    const inset = 0.22;
+    let uy = top + 0.95;
+    slots.forEach((sl, i) => {
+      ctx.fillStyle = THEME.field;
+      roundRect(ctx, this.px(LAYOUT.nextX + inset), this.py(uy), (LAYOUT.sideW - inset * 2) * cell, sl.h * cell, cell * 0.2);
+      ctx.fill();
+      const type = game?.next[i];
+      if (type) this.miniPiece(type, LAYOUT.nextX, uy, LAYOUT.sideW, sl.h, sl.scale, 1);
+      uy += sl.h + GAP;
     });
   }
 
