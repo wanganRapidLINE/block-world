@@ -72,7 +72,8 @@ function showOverlay(title: string, sub: string, buttons: MenuButton[]): void {
   overlayTitle.textContent = title;
   overlayHint.textContent =
     screen === 'title'
-      ? '十字キー左右でモード選択（エンドレスは上下で開始レベル）\nEnter / Options(+)ボタン で開始' : 'Enter / Options(+)ボタン でも決定できます';
+      ? '十字キー左右でモード、上下で開始レベル（エンドレス）\nEnter / Options(+)ボタン で開始'
+      : 'Enter / Options(+)ボタン でも決定できます';
   overlaySub.textContent = sub;
   overlayButtons.replaceChildren(
     ...buttons.map((b) => {
@@ -89,32 +90,44 @@ function showOverlay(title: string, sub: string, buttons: MenuButton[]): void {
 const settingsButton: MenuButton = { label: '設定', onClick: () => settingsScreen.open() };
 
 const MODES: { mode: GameMode; label: string }[] = [
-  { mode: 'marathon', label: `マラソン（${MARATHON_LINES}ライン）` },
+  { mode: 'marathon', label: `マラソン（${MARATHON_LINES}L）` },
   { mode: 'endless', label: 'エンドレス' },
 ];
 
+/**
+ * タイトル画面: [モード切替] [開始レベル] [スタート] [設定] [全画面]
+ * モードのボタンは選ぶだけで、ゲームは「スタート」で始める
+ */
 function toTitle(): void {
   screen = 'title';
-  const buttons: MenuButton[] = MODES.map((m) => ({
-    label: m.label,
-    primary: m.mode === settings.mode,
-    onClick: () => startGame(m.mode),
-  }));
-  buttons.push(settingsButton);
+  const buttons: MenuButton[] = [{ label: 'スタート', primary: true, onClick: () => startGame() }, settingsButton];
   if (document.fullscreenEnabled && !document.fullscreenElement) {
     buttons.push({ label: '全画面にする', onClick: () => void document.documentElement.requestFullscreen().catch(() => {}) });
   }
   showOverlay('BLOCK WORLD', '', buttons);
-  if (settings.mode === 'endless') {
-    // エンドレスのボタンの直後に開始レベルの選択を差し込む
-    overlayButtons.children[1].after(levelSelector());
-  }
+  overlayButtons.prepend(modeSelector(), levelSelector());
 }
 
-/** 「開始レベル − 5 ＋」の行 */
+/** 「マラソン｜エンドレス」の切り替え */
+function modeSelector(): HTMLElement {
+  const row = document.createElement('div');
+  row.className = 'mode-row';
+  for (const m of MODES) {
+    const b = document.createElement('button');
+    b.textContent = m.label;
+    b.setAttribute('aria-pressed', String(m.mode === settings.mode));
+    b.addEventListener('click', () => setMode(m.mode));
+    row.append(b);
+  }
+  return row;
+}
+
+/** 「開始レベル − 5 ＋」の行。マラソンは必ずレベル1からなので、薄くして操作できなくする */
 function levelSelector(): HTMLElement {
+  const endless = settings.mode === 'endless';
   const row = document.createElement('div');
   row.className = 'level-row';
+  row.classList.toggle('disabled', !endless);
   const minus = document.createElement('button');
   minus.textContent = '−';
   minus.setAttribute('aria-label', '開始レベルを下げる');
@@ -123,10 +136,17 @@ function levelSelector(): HTMLElement {
   plus.textContent = '＋';
   plus.setAttribute('aria-label', '開始レベルを上げる');
   plus.addEventListener('click', () => changeStartLevel(1));
+  minus.disabled = plus.disabled = !endless;
   const label = document.createElement('span');
-  label.textContent = `開始レベル ${settings.startLevel}`;
+  label.textContent = `開始レベル ${endless ? settings.startLevel : 1}`;
   row.append(minus, label, plus);
   return row;
+}
+
+function setMode(mode: GameMode): void {
+  settings.mode = mode;
+  saveSettings(settings);
+  toTitle();
 }
 
 /** 開始レベルを上下する（1〜15。端まで行ったら反対側へ回る） */
@@ -139,9 +159,7 @@ function changeStartLevel(dir: number): void {
 /** タイトル画面で十字キー左右（←→キー）を押したらモードを切り替える */
 function cycleMode(dir: number): void {
   const i = MODES.findIndex((m) => m.mode === settings.mode);
-  settings.mode = MODES[(i + dir + MODES.length) % MODES.length].mode;
-  saveSettings(settings);
-  toTitle();
+  setMode(MODES[(i + dir + MODES.length) % MODES.length].mode);
 }
 
 /** 分:秒.1/100秒 */
@@ -152,11 +170,8 @@ function formatTime(ms: number): string {
   return `${m}:${String(sec).padStart(2, '0')}.${String(cs % 100).padStart(2, '0')}`;
 }
 
-function startGame(mode: GameMode = settings.mode): void {
-  if (settings.mode !== mode) {
-    settings.mode = mode;
-    saveSettings(settings);
-  }
+function startGame(): void {
+  const mode = settings.mode;
   game =
     mode === 'marathon'
       ? new Game({ goalLines: MARATHON_LINES })

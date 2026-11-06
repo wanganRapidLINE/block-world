@@ -88,6 +88,23 @@ body {
   font-size: 12px;
   white-space: pre-line;
 }
+.mode-row {
+  display: flex;
+  gap: 6px;
+}
+.mode-row button {
+  flex: 1;
+  padding: 8px 4px;
+  white-space: nowrap;
+}
+.mode-row button[aria-pressed='true'] {
+  background: #3b4280;
+  border-color: var(--accent);
+  font-weight: bold;
+}
+.level-row.disabled {
+  opacity: 0.35;
+}
 .level-row {
   display: flex;
   align-items: center;
