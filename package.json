@@ -10,7 +10,7 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
-    "generate-icons": "pwa-assets-generator --preset minimal-2023 public/icon.svg"
+    "generate-icons": "pwa-assets-generator"
   },
   "devDependencies": {
     "@vite-pwa/assets-generator": "^1.0.4",
