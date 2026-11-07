@@ -303,13 +303,14 @@ export class Renderer {
   }
 
   /**
-   * NEXT。1個目はフィールドの真上に、フィールドと同じ大きさで目立たせて出す。
+   * NEXT。1個目はフィールドの上（右寄せ）に、フィールドと同じ大きさで目立たせて出す。
    * 2個目以降は右の列に小さめの枠で並べる
    */
   private drawNext(game: Game | null): void {
     const { ctx, cell } = this;
     // 1個目
-    const bx = LAYOUT.fieldX;
+    // 右の列の右端にそろえる
+    const bx = LAYOUT.nextX + LAYOUT.sideW - COLS;
     const bw = COLS;
     const bh = LAYOUT.nextBoxH;
     this.panel(bx, 0, bw, bh, 'NEXT');
