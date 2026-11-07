@@ -283,9 +283,13 @@ function frame(now: number): void {
 
 // ─── 画面サイズ・仮想パッド ───
 
+// 横向きでは仮想パッドを左右に重ねるので、フィールドを上に寄せる必要がない（style.css と同じ条件）
+const landscapePad = window.matchMedia('(orientation: landscape) and (min-aspect-ratio: 4/3)');
+landscapePad.addEventListener('change', () => resize());
+
 function resize(): void {
   const r = stage.getBoundingClientRect();
-  renderer.resize(r.width, r.height, !touchpad.hidden);
+  renderer.resize(r.width, r.height, !touchpad.hidden && !landscapePad.matches);
   renderer.draw(game, performance.now());
 }
 new ResizeObserver(resize).observe(stage);

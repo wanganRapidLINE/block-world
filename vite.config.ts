@@ -24,7 +24,8 @@ export default defineConfig(({ mode }) => ({
         start_url: './',
         scope: './',
         display: 'fullscreen',
-        orientation: 'portrait',
+        // スマホは縦、タブレットは横で遊べるよう向きは固定しない
+        orientation: 'any',
         background_color: '#0b0c1c',
         theme_color: '#0b0c1c',
         icons: [
