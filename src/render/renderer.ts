@@ -5,16 +5,9 @@ import { cellsOf, PIECE_COLORS, type PieceType } from '../core/pieces';
 // 配置はすべて「ブロック何個分か」で表す
 const LAYOUT = {
   width: 20,
-  height: 24.5,
+  height: 22.6,
   /** 可視範囲の上に覗かせる見えない行の数 */
   bufferRows: 2,
-  /**
-   * フィールド枠の上端。上の空きに NEXT の1個目を置く。
-   * 出現直後のミノがかかる1段（20行目）は空けておき、21行目だけ NEXT 枠と重なる
-   */
-  fieldTop: 3.9,
-  /** フィールドの上に置く NEXT 1個目の枠の高さ */
-  nextBoxH: 2.8,
   holdX: 0,
   fieldX: 5,
   nextX: 15.5,
@@ -72,10 +65,9 @@ export class Renderer {
   draw(game: Game | null, now: number): void {
     const { ctx } = this;
     ctx.clearRect(0, 0, this.cssW, this.cssH);
-    // NEXT を先に描く（積みが高いとき、見えない行のミノが NEXT 枠の上に重なって見えるように）
-    this.drawNext(game);
     this.drawField(game, now);
     this.drawHold(game);
+    this.drawNext(game);
     this.drawStats(game);
     this.drawLabels(game, now);
   }
@@ -91,7 +83,7 @@ export class Renderer {
   }
   /** フィールドの行 y（0=一番下）→ レイアウト上の上端 */
   private rowTop(y: number): number {
-    return LAYOUT.fieldTop + (VISIBLE_ROWS - 1 - y);
+    return LAYOUT.bufferRows + (VISIBLE_ROWS - 1 - y);
   }
 
   // ─── フィールド ───
@@ -99,7 +91,7 @@ export class Renderer {
   private drawField(game: Game | null, now: number): void {
     const { ctx, cell } = this;
     const x0 = this.px(LAYOUT.fieldX);
-    const y0 = this.py(LAYOUT.fieldTop);
+    const y0 = this.py(LAYOUT.bufferRows);
     const w = COLS * cell;
     const h = VISIBLE_ROWS * cell;
 
@@ -295,7 +287,7 @@ export class Renderer {
   }
 
   private drawHold(game: Game | null): void {
-    const top = LAYOUT.fieldTop;
+    const top = LAYOUT.bufferRows;
     this.panel(LAYOUT.holdX, top, LAYOUT.sideW, 3.6, 'HOLD');
     if (game?.hold) {
       this.miniPiece(game.hold, LAYOUT.holdX, top + 0.9, LAYOUT.sideW, 2.6, 0.72, game.holdUsed ? 0.3 : 1);
@@ -303,42 +295,38 @@ export class Renderer {
   }
 
   /**
-   * NEXT。1個目はフィールドの上（右寄せ）に、フィールドと同じ大きさで目立たせて出す。
-   * 2個目以降は右の列に小さめの枠で並べる
+   * NEXT。1個目は黄色い枠で囲んだ大きな枠、2個目以降は小さめの枠に1個ずつ入れる。
+   * 枠の高さとミノの大きさ（cell に対する倍率）
    */
   private drawNext(game: Game | null): void {
-    const { ctx, cell } = this;
-    // 1個目
-    // 右の列の右端にそろえる
-    const bx = LAYOUT.nextX + LAYOUT.sideW - COLS;
-    const bw = COLS;
-    const bh = LAYOUT.nextBoxH;
-    this.panel(bx, 0, bw, bh, 'NEXT');
-    ctx.strokeStyle = THEME.accent;
-    ctx.lineWidth = Math.max(1, cell * 0.08);
-    roundRect(ctx, this.px(bx), this.py(0), bw * cell, bh * cell, cell * 0.25);
-    ctx.stroke();
-    ctx.lineWidth = 1;
-    const first = game?.next[0];
-    if (first) this.miniPiece(first, bx, 0, bw, bh, 1, 1);
-
-    // 2個目以降
-    const SLOT_H = 2.4;
-    const SCALE = 0.68;
-    const INSET = 0.22;
+    const top = LAYOUT.bufferRows;
+    // 1個目はフィールドと同じ大きさ。I（4マス）でも枠に収まるよう、1個目の枠は余白を詰める
+    const FIRST = { h: 3.2, scale: 1, inset: 0.1 };
+    // 2個目以降は1個目と差がつくよう小さめに
+    const REST = { h: 2.0, scale: 0.55, inset: 0.3 };
     const GAP = 0.25;
-    const top = LAYOUT.fieldTop;
-    const rest = (game ? game.next.length : 5) - 1;
-    this.panel(LAYOUT.nextX, top, LAYOUT.sideW, GAP + rest * (SLOT_H + GAP), '');
-    let uy = top + GAP;
-    for (let i = 1; i <= rest; i++) {
+    const count = game ? game.next.length : 5;
+    const slots = Array.from({ length: count }, (_, i) => (i === 0 ? FIRST : REST));
+    const totalH = 0.95 + slots.reduce((sum, sl) => sum + sl.h + GAP, 0);
+    this.panel(LAYOUT.nextX, top, LAYOUT.sideW, totalH, 'NEXT');
+
+    const { ctx, cell } = this;
+    let uy = top + 0.95;
+    slots.forEach((sl, i) => {
       ctx.fillStyle = THEME.field;
-      roundRect(ctx, this.px(LAYOUT.nextX + INSET), this.py(uy), (LAYOUT.sideW - INSET * 2) * cell, SLOT_H * cell, cell * 0.2);
+      roundRect(ctx, this.px(LAYOUT.nextX + sl.inset), this.py(uy), (LAYOUT.sideW - sl.inset * 2) * cell, sl.h * cell, cell * 0.2);
       ctx.fill();
+      if (i === 0) {
+        // 1個目は黄色い枠で強調
+        ctx.strokeStyle = THEME.accent;
+        ctx.lineWidth = Math.max(1.5, cell * 0.1);
+        ctx.stroke();
+        ctx.lineWidth = 1;
+      }
       const type = game?.next[i];
-      if (type) this.miniPiece(type, LAYOUT.nextX, uy, LAYOUT.sideW, SLOT_H, SCALE, 1);
-      uy += SLOT_H + GAP;
-    }
+      if (type) this.miniPiece(type, LAYOUT.nextX, uy, LAYOUT.sideW, sl.h, sl.scale, 1);
+      uy += sl.h + GAP;
+    });
   }
 
   // ─── スコア類 ───
@@ -350,7 +338,7 @@ export class Renderer {
       ['LINES', game?.goalLines ? `${game.lines}/${game.goalLines}` : String(game?.lines ?? 0)],
       ['LEVEL', String(game?.level ?? 1)],
     ];
-    let uy = LAYOUT.fieldTop + 4.2;
+    let uy = LAYOUT.bufferRows + 4.2;
     ctx.textAlign = 'left';
     ctx.textBaseline = 'top';
     for (const [label, value] of rows) {
@@ -379,7 +367,7 @@ export class Renderer {
     ctx.globalAlpha = t < LABEL_SHOW_MS - 400 ? 1 : (LABEL_SHOW_MS - t) / 400;
     ctx.textAlign = 'left';
     ctx.textBaseline = 'top';
-    let uy = LAYOUT.fieldTop + 10.6;
+    let uy = LAYOUT.bufferRows + 10.6;
     this.labels.forEach((text, i) => {
       ctx.fillStyle = i === 0 ? THEME.accent : THEME.text;
       ctx.font = `bold ${Math.round(cell * (i === 0 ? 0.62 : 0.5))}px system-ui, sans-serif`;
