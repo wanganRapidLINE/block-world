@@ -17,7 +17,7 @@ type Screen = 'title' | 'countdown' | 'playing' | 'paused' | 'gameover' | 'clear
 const COUNT_STEP_MS = 800;
 const GO_SHOW_MS = 500;
 /** 隠しモード 20G: タイトル画面のボタン以外をこの回数続けてタップすると出る（間が空くと数え直し） */
-const SECRET_TAPS = 20;
+const SECRET_TAPS = 8;
 const SECRET_TAP_GAP_MS = 1500;
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -150,7 +150,7 @@ overlay.addEventListener('pointerdown', (e) => {
   lastSecretTap = now;
   if (++secretTaps < SECRET_TAPS) return;
   secretTaps = 0;
-  // もう一度20回タップすると隠し直す
+  // もう一度同じ回数タップすると隠し直す
   settings.g20Unlocked = !settings.g20Unlocked;
   settings.g20 = settings.g20Unlocked;
   saveSettings(settings);

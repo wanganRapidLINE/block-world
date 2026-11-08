@@ -28,7 +28,7 @@ export interface Settings {
   mode: GameMode;
   /** エンドレスの開始レベル 1〜15 */
   startLevel: number;
-  /** 隠しモード 20G を解放したか（タイトル画面を20回タップ） */
+  /** 隠しモード 20G を解放したか（タイトル画面を8回タップ） */
   g20Unlocked: boolean;
   /** 20G で遊ぶか */
   g20: boolean;
