@@ -17,7 +17,7 @@ type Screen = 'title' | 'countdown' | 'playing' | 'paused' | 'gameover' | 'clear
 const COUNT_STEP_MS = 800;
 const GO_SHOW_MS = 500;
 /** 隠しモード 20G: タイトル画面のボタン以外をこの回数続けてタップすると出る（間が空くと数え直し） */
-const SECRET_TAPS = 8;
+const SECRET_TAPS = 7;
 const SECRET_TAP_GAP_MS = 1500;
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
