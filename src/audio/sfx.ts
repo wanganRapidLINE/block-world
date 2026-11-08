@@ -42,6 +42,17 @@ export class Sfx {
     if (this.master) this.master.gain.value = this.volume;
   }
 
+  /** 開始前のカウントダウン。go=true は「GO」の音 */
+  countdown(go: boolean): void {
+    if (!this.enabled) return;
+    if (go) {
+      this.tone(0, 0.32, 'square', C6, C6, 0.12);
+      this.tone(0, 0.32, 'square', G6, G6, 0.06);
+    } else {
+      this.tone(0, 0.1, 'square', G5, G5, 0.1);
+    }
+  }
+
   /** 1フレーム分の出来事に合わせて鳴らす */
   playEvents(events: GameEvent[]): void {
     if (!this.enabled || events.length === 0) return;

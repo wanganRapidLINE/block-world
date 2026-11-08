@@ -28,6 +28,10 @@ export interface Settings {
   mode: GameMode;
   /** エンドレスの開始レベル 1〜15 */
   startLevel: number;
+  /** 隠しモード 20G を解放したか（タイトル画面を20回タップ） */
+  g20Unlocked: boolean;
+  /** 20G で遊ぶか */
+  g20: boolean;
 }
 
 const btn = (index: number): PadBinding => ({ kind: 'button', index });
@@ -66,6 +70,8 @@ export function defaultSettings(): Settings {
     sfxVolume: 60,
     mode: 'marathon',
     startLevel: 1,
+    g20Unlocked: false,
+    g20: false,
   };
 }
 
@@ -95,6 +101,10 @@ export function loadSettings(): Settings {
     if (saved.mode === 'marathon' || saved.mode === 'endless') base.mode = saved.mode;
     if (Number.isInteger(saved.startLevel) && saved.startLevel! >= 1 && saved.startLevel! <= MAX_LEVEL) {
       base.startLevel = saved.startLevel!;
+    }
+    if (saved.g20Unlocked === true) {
+      base.g20Unlocked = true;
+      base.g20 = saved.g20 === true;
     }
     if (saved.touchPad === 'auto' || saved.touchPad === 'show' || saved.touchPad === 'hide') {
       base.touchPad = saved.touchPad;

@@ -62,7 +62,8 @@ export class Renderer {
     this.oy = Math.floor(alignTop ? Math.min(spareH, this.cell * 0.4) : spareH / 2);
   }
 
-  draw(game: Game | null, now: number): void {
+  /** banner: フィールドの中央に大きく出す文字（カウントダウンの「3」「GO!」など） */
+  draw(game: Game | null, now: number, banner: string | null = null): void {
     const { ctx } = this;
     ctx.clearRect(0, 0, this.cssW, this.cssH);
     this.drawField(game, now);
@@ -70,6 +71,22 @@ export class Renderer {
     this.drawNext(game);
     this.drawStats(game);
     this.drawLabels(game, now);
+    if (banner) this.drawBanner(banner);
+  }
+
+  private drawBanner(text: string): void {
+    const { ctx, cell } = this;
+    const cx = this.px(LAYOUT.fieldX + COLS / 2);
+    const cy = this.py(LAYOUT.bufferRows + VISIBLE_ROWS * 0.4);
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.font = `bold ${Math.round(cell * (text.length > 1 ? 3 : 4.5))}px system-ui, sans-serif`;
+    ctx.lineWidth = Math.max(2, cell * 0.25);
+    ctx.strokeStyle = 'rgba(5, 6, 16, 0.85)';
+    ctx.strokeText(text, cx, cy);
+    ctx.fillStyle = THEME.accent;
+    ctx.fillText(text, cx, cy);
+    ctx.lineWidth = 1;
   }
 
   // ─── 座標変換 ───
@@ -336,7 +353,7 @@ export class Renderer {
     const rows: [string, string][] = [
       ['SCORE', String(game?.score ?? 0)],
       ['LINES', game?.goalLines ? `${game.lines}/${game.goalLines}` : String(game?.lines ?? 0)],
-      ['LEVEL', String(game?.level ?? 1)],
+      [game?.gravity20G ? 'LEVEL  20G' : 'LEVEL', String(game?.level ?? 1)],
     ];
     let uy = LAYOUT.bufferRows + 4.2;
     ctx.textAlign = 'left';

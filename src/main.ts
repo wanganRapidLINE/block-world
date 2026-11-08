@@ -11,7 +11,14 @@ import { TouchSource } from './input/touch';
 import { Renderer } from './render/renderer';
 import { SettingsScreen } from './ui/settings';
 
-type Screen = 'title' | 'playing' | 'paused' | 'gameover' | 'cleared';
+type Screen = 'title' | 'countdown' | 'playing' | 'paused' | 'gameover' | 'cleared';
+
+/** カウントダウン「3・2・1」の1つ分の時間と、そのあと「GO!」を出しておく時間 */
+const COUNT_STEP_MS = 800;
+const GO_SHOW_MS = 500;
+/** 隠しモード 20G: タイトル画面のボタン以外をこの回数続けてタップすると出る（間が空くと数え直し） */
+const SECRET_TAPS = 20;
+const SECRET_TAP_GAP_MS = 1500;
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 
@@ -40,6 +47,11 @@ sfx.setEnabled(settings.sfxEnabled);
 
 let game: Game | null = null;
 let screen: Screen = 'title';
+let countdownStart = 0;
+let countdownBeeps = 0;
+let goUntil = 0;
+/** このゲームで BGM を鳴らし始めたか（ポーズ明けは続きから流す） */
+let bgmStarted = false;
 
 const settingsScreen = new SettingsScreen(settings, {
   onOpenChange(open) {
@@ -72,7 +84,9 @@ function showOverlay(title: string, sub: string, buttons: MenuButton[]): void {
   overlayTitle.textContent = title;
   overlayHint.textContent =
     screen === 'title'
-      ? '十字キー左右でモード、上下で開始レベル（エンドレス）\nEnter / Options(+)ボタン で開始'
+      ? '十字キー左右でモード、上下で開始レベル（エンドレス）\n' +
+        (settings.g20Unlocked ? 'L / R ボタン（HOLD）で 20G 切り替え\n' : '') +
+        'Enter / Options(+)ボタン で開始'
       : 'Enter / Options(+)ボタン でも決定できます';
   overlaySub.textContent = sub;
   overlayButtons.replaceChildren(
@@ -106,7 +120,48 @@ function toTitle(): void {
   }
   showOverlay('BLOCK WORLD', '', buttons);
   overlayButtons.prepend(modeSelector(), levelSelector());
+  if (settings.g20Unlocked) overlayButtons.children[1].after(g20Toggle());
 }
+
+/** 隠しモード 20G の ON/OFF ボタン */
+function g20Toggle(): HTMLElement {
+  const b = document.createElement('button');
+  b.className = 'g20-toggle';
+  b.textContent = `20G：${settings.g20 ? 'ON' : 'OFF'}`;
+  b.setAttribute('aria-pressed', String(settings.g20));
+  b.addEventListener('click', toggleG20);
+  return b;
+}
+
+function toggleG20(): void {
+  settings.g20 = !settings.g20;
+  saveSettings(settings);
+  toTitle();
+}
+
+// タイトル画面のボタン以外の場所を続けてタップした回数
+let secretTaps = 0;
+let lastSecretTap = 0;
+overlay.addEventListener('pointerdown', (e) => {
+  if (screen !== 'title' || settingsScreen.isOpen) return;
+  if ((e.target as Element).closest('button')) return;
+  const now = performance.now();
+  if (now - lastSecretTap > SECRET_TAP_GAP_MS) secretTaps = 0;
+  lastSecretTap = now;
+  if (++secretTaps < SECRET_TAPS) return;
+  secretTaps = 0;
+  // もう一度20回タップすると隠し直す
+  settings.g20Unlocked = !settings.g20Unlocked;
+  settings.g20 = settings.g20Unlocked;
+  saveSettings(settings);
+  toTitle();
+  if (settings.g20Unlocked) {
+    sfx.playEvents([{ type: 'levelUp', level: 1 }]);
+    showToast('隠しモード「20G」が出現しました');
+  } else {
+    showToast('20G を隠しました');
+  }
+});
 
 /** 「マラソン｜エンドレス」の切り替え */
 function modeSelector(): HTMLElement {
@@ -172,21 +227,58 @@ function formatTime(ms: number): string {
 
 function startGame(): void {
   const mode = settings.mode;
+  const gravity20G = settings.g20Unlocked && settings.g20;
   game =
     mode === 'marathon'
-      ? new Game({ goalLines: MARATHON_LINES })
-      : new Game({ goalLines: null, startLevel: settings.startLevel });
+      ? new Game({ goalLines: MARATHON_LINES, gravity20G })
+      : new Game({ goalLines: null, startLevel: settings.startLevel, gravity20G });
   // 開発サーバーのときだけ、動作確認用にゲームを外から触れるようにする（本番ビルドには含まれない）
   if (import.meta.env.DEV) (window as unknown as { __game: Game }).__game = game;
-  repeater.reset();
-  screen = 'playing';
+  bgmStarted = false;
   overlay.hidden = true;
-  bgm.start();
+  beginCountdown();
   void requestWakeLock();
 }
 
+/** 「3・2・1・GO!」のあとで動き出す。開始時とポーズ明けに使う */
+function beginCountdown(): void {
+  screen = 'countdown';
+  countdownStart = performance.now();
+  countdownBeeps = 0;
+  goUntil = 0;
+}
+
+function updateCountdown(now: number): void {
+  const elapsed = now - countdownStart;
+  if (elapsed < 3 * COUNT_STEP_MS) {
+    const step = Math.floor(elapsed / COUNT_STEP_MS);
+    if (countdownBeeps <= step) {
+      countdownBeeps = step + 1;
+      sfx.countdown(false);
+    }
+    return;
+  }
+  sfx.countdown(true);
+  screen = 'playing';
+  goUntil = now + GO_SHOW_MS;
+  repeater.reset();
+  if (bgmStarted) {
+    bgm.resume();
+  } else {
+    bgm.start();
+    bgmStarted = true;
+  }
+}
+
+/** フィールドの中央に出す文字 */
+function bannerText(now: number): string | null {
+  if (screen === 'countdown') return String(3 - Math.min(2, Math.floor((now - countdownStart) / COUNT_STEP_MS)));
+  if (screen === 'playing' && now < goUntil) return 'GO!';
+  return null;
+}
+
 function pauseGame(): void {
-  if (screen !== 'playing') return;
+  if (screen !== 'playing' && screen !== 'countdown') return;
   screen = 'paused';
   game?.setSoftDrop(false);
   bgm.pause();
@@ -200,10 +292,8 @@ function pauseGame(): void {
 
 function resumeGame(): void {
   if (screen !== 'paused') return;
-  screen = 'playing';
-  repeater.reset();
   overlay.hidden = true;
-  bgm.resume();
+  beginCountdown();
   void requestWakeLock();
 }
 
@@ -213,7 +303,8 @@ function toResult(): void {
   const cleared = g.status === 'cleared';
   screen = cleared ? 'cleared' : 'gameover';
   bgm.stop();
-  const sub = `SCORE ${g.score}\nLINES ${g.lines} / LEVEL ${g.level}\nTIME ${formatTime(g.playTimeMs)}`;
+  const modeName = (g.goalLines ? 'マラソン' : 'エンドレス') + (g.gravity20G ? '  20G' : '');
+  const sub = `${modeName}\nSCORE ${g.score}\nLINES ${g.lines} / LEVEL ${g.level}\nTIME ${formatTime(g.playTimeMs)}`;
   showOverlay(cleared ? 'GAME CLEAR' : 'GAME OVER', sub, [
     { label: 'もう一度', primary: true, onClick: () => startGame() },
     { label: 'タイトルへ', onClick: toTitle },
@@ -262,7 +353,11 @@ function frame(now: number): void {
   const f = input.poll();
 
   if (!settingsScreen.isOpen) {
-    if (screen === 'playing' && game) {
+    if (screen === 'countdown' && game) {
+      // カウント中の操作は捨てる（ポーズだけ受け付ける）
+      if (f.pressed.has('pause')) pauseGame();
+      else updateCountdown(now);
+    } else if (screen === 'playing' && game) {
       applyInput(game, f, dt);
       if (screen === 'playing') game.update(dt);
       sfx.playEvents(game.drainEvents());
@@ -271,13 +366,15 @@ function frame(now: number): void {
       confirmAction();
     } else if (screen === 'title' && (f.pressed.has('left') || f.pressed.has('right'))) {
       cycleMode(f.pressed.has('left') ? -1 : 1);
+    } else if (screen === 'title' && settings.g20Unlocked && f.pressed.has('hold')) {
+      toggleG20();
     } else if (screen === 'title' && settings.mode === 'endless' && (f.pressed.has('hardDrop') || f.pressed.has('softDrop'))) {
       // 十字キー上下 = ハードドロップ／ソフトドロップの割り当て
       changeStartLevel(f.pressed.has('hardDrop') ? 1 : -1);
     }
   }
 
-  renderer.draw(game, now);
+  renderer.draw(game, now, bannerText(now));
   requestAnimationFrame(frame);
 }
 

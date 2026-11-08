@@ -57,6 +57,8 @@ export interface GameOptions {
   startLevel?: number;
   /** このライン数に届いたらクリア。null ならエンドレス */
   goalLines?: number | null;
+  /** 20G: ミノが出た瞬間・動かした瞬間に一番下まで落ちる */
+  gravity20G?: boolean;
   /** false にすると最初のミノを出さない（テスト用） */
   autoStart?: boolean;
 }
@@ -79,6 +81,7 @@ export class Game {
   /** プレイ時間（ポーズ中は進まない） */
   playTimeMs = 0;
   readonly goalLines: number | null;
+  readonly gravity20G: boolean;
 
   /** 直前の回転で何番目のキックを使ったか（T-Spin Mini の例外判定用） */
   lastKickIndex = 0;
@@ -104,6 +107,7 @@ export class Game {
     this.startLevel = opts.startLevel ?? 1;
     this.level = this.startLevel;
     this.goalLines = opts.goalLines ?? null;
+    this.gravity20G = opts.gravity20G ?? false;
     this.fillQueue();
     if (opts.autoStart !== false) this.spawnNext();
   }
@@ -154,6 +158,7 @@ export class Game {
     // 出現直後、下が空いていれば1段落とす
     if (this.fitsAt(0, -1)) this.active!.y--;
     this.lowestY = this.active!.y;
+    this.sink20G();
   }
 
   /** 操作中のミノを直接置く（出現処理・テスト用）。ロック関連の状態は初期化する */
@@ -176,6 +181,7 @@ export class Game {
     this.lastActionRotate = false;
     this.onControlled();
     this.events.push({ type: 'move' });
+    this.sink20G();
     return true;
   }
 
@@ -199,6 +205,7 @@ export class Game {
         this.onControlled();
         this.checkNewLowest();
         this.events.push({ type: 'rotate' });
+        this.sink20G();
         return true;
       }
     }
@@ -259,20 +266,11 @@ export class Game {
       return;
     }
     if (!this.canControl()) return;
-    const a = this.active!;
 
-    const interval = gravityMs(this.level) / (this.softDropping ? SOFT_DROP_FACTOR : 1);
-    this.dropTimer += dtMs;
-    while (this.dropTimer >= interval) {
-      if (!this.fitsAt(0, -1)) {
-        this.dropTimer = 0;
-        break;
-      }
-      this.dropTimer -= interval;
-      a.y--;
-      this.lastActionRotate = false;
-      if (this.softDropping) this.score += 1;
-      this.checkNewLowest();
+    if (this.gravity20G) {
+      this.sink20G();
+    } else {
+      this.applyGravity(dtMs);
     }
 
     if (this.fitsAt(0, -1)) {
@@ -287,6 +285,39 @@ export class Game {
     }
     this.lockTimer += dtMs;
     if (this.lockTimer >= LOCK_DELAY_MS) this.lock();
+  }
+
+  /** 通常の重力。レベルに応じた間隔で1段ずつ落とす */
+  private applyGravity(dtMs: number): void {
+    const a = this.active!;
+    const interval = gravityMs(this.level) / (this.softDropping ? SOFT_DROP_FACTOR : 1);
+    this.dropTimer += dtMs;
+    while (this.dropTimer >= interval) {
+      if (!this.fitsAt(0, -1)) {
+        this.dropTimer = 0;
+        break;
+      }
+      this.dropTimer -= interval;
+      a.y--;
+      this.lastActionRotate = false;
+      if (this.softDropping) this.score += 1;
+      this.checkNewLowest();
+    }
+  }
+
+  /** 20G のとき、操作中のミノを一番下まで落とす（得点なし）。横移動で穴の上を通れば穴に落ちる */
+  private sink20G(): void {
+    if (!this.gravity20G || !this.active) return;
+    let fell = false;
+    while (this.fitsAt(0, -1)) {
+      this.active.y--;
+      fell = true;
+    }
+    if (fell) {
+      // 回転のあとに落ちたら、最後の操作は回転ではない（T-Spin にならない）
+      this.lastActionRotate = false;
+      this.checkNewLowest();
+    }
   }
 
   // ─── 内部処理 ───

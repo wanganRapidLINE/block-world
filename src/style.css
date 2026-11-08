@@ -102,6 +102,12 @@ body {
   border-color: var(--accent);
   font-weight: bold;
 }
+.g20-toggle[aria-pressed='true'] {
+  background: #5a1f2e;
+  border-color: #ff5a6e;
+  color: #ffd0d6;
+  font-weight: bold;
+}
 .level-row.disabled {
   opacity: 0.35;
 }
