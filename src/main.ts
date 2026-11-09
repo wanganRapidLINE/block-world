@@ -3,9 +3,9 @@ import { Bgm } from './audio/bgm';
 import { Sfx } from './audio/sfx';
 import { Game, MARATHON_LINES, MAX_LEVEL } from './core/game';
 import { InputHub, type InputFrame } from './input/actions';
-import { loadSettings, saveSettings, type GameMode } from './input/bindings';
+import { buttonName, loadSettings, saveSettings, type GameMode } from './input/bindings';
 import { HorizontalRepeater } from './input/das';
-import { connectedPads, GamepadSource } from './input/gamepad';
+import { connectedPads, GamepadSource, is8BitDo, padStyleOf, type PadStyle } from './input/gamepad';
 import { KeyboardSource } from './input/keyboard';
 import { TouchSource } from './input/touch';
 import { Renderer } from './render/renderer';
@@ -66,6 +66,7 @@ const settingsScreen = new SettingsScreen(settings, {
     sfx.setVolume(settings.sfxVolume);
     sfx.setEnabled(settings.sfxEnabled);
     updateTouchpad();
+    updateOverlayHint();
   },
   onSfxPreview() {
     sfx.playEvents([{ type: 'rotate' }]);
@@ -80,14 +81,32 @@ interface MenuButton {
   onClick: () => void;
 }
 
-function showOverlay(title: string, sub: string, buttons: MenuButton[]): void {
-  overlayTitle.textContent = title;
+/** 操作説明に出すボタン名の表記（使っているパッドに合わせる） */
+let padStyle: PadStyle = 'none';
+
+/** そのアクションに割り当てたパッドのボタン名（スティック等は除く）。「L / R」のように並べる */
+function padButtons(action: 'pause' | 'hold'): string {
+  return settings.pad[action]
+    .filter((b) => b.kind === 'button')
+    .map((b) => buttonName(b.index, padStyle))
+    .join(' / ');
+}
+
+function updateOverlayHint(): void {
+  const pause = padButtons('pause');
+  const hold = padButtons('hold');
+  const enter = pause ? `Enter / ${pause}` : 'Enter';
   overlayHint.textContent =
     screen === 'title'
       ? '十字キー左右でモード、上下で開始レベル（エンドレス）\n' +
-        (settings.g20Unlocked ? 'L / R ボタン（HOLD）で 20G 切り替え\n' : '') +
-        'Enter / Options(+)ボタン で開始'
-      : 'Enter / Options(+)ボタン でも決定できます';
+        (settings.g20Unlocked && hold ? `${hold}（HOLD）で 20G 切り替え\n` : '') +
+        `${enter} で開始`
+      : `${enter} でも決定できます`;
+}
+
+function showOverlay(title: string, sub: string, buttons: MenuButton[]): void {
+  overlayTitle.textContent = title;
+  updateOverlayHint();
   overlaySub.textContent = sub;
   overlayButtons.replaceChildren(
     ...buttons.map((b) => {
@@ -411,11 +430,22 @@ function showToast(text: string, ms = 3500): void {
   toastTimer = window.setTimeout(() => (toast.hidden = true), ms);
 }
 
-window.addEventListener('gamepadconnected', (e) => {
-  const p = e.gamepad;
-  const note = p.mapping === 'standard' ? '' : '\n独自配置のため、設定でボタンを割り当ててください';
+// 実際に操作したパッドが決まったとき・持ち替えたときに知らせ、ボタン表記を合わせる
+gamepad.onPadChange = (p) => {
+  const style = padStyleOf(p?.id);
+  if (style !== padStyle) {
+    padStyle = style;
+    updateOverlayHint();
+  }
+  updateTouchpad();
+  if (!p) return;
+  const note = is8BitDo(p.id)
+    ? '\nA・Bの位置に合わせて自動で設定しました'
+    : p.mapping === 'standard'
+      ? ''
+      : '\n独自配置のため、設定でボタンを割り当ててください';
   showToast(`ゲームパッド接続: ${p.id}${note}`, note ? 6000 : 3500);
-});
+};
 window.addEventListener('gamepaddisconnected', () => {
   showToast('ゲームパッドが切断されました');
   pauseGame();

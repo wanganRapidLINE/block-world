@@ -1,5 +1,6 @@
 import { MAX_LEVEL } from '../core/game';
 import { ACTIONS, type Action } from './actions';
+import type { PadStyle } from './gamepad';
 
 export type PadBinding =
   | { kind: 'button'; index: number }
@@ -39,6 +40,7 @@ const axis = (index: number, dir: 1 | -1): PadBinding => ({ kind: 'axis', index,
 
 // ゲームパッドは standard mapping の番号
 // 0=下(×/B) 1=右(○/A) 2=左(□/Y) 3=上(△/X) 4=L1 5=R1 9=Options/+ 12〜15=十字キー上下左右
+// 番号はボタンの位置。8BitDo のように印字どおりの番号を送るパッドは gamepad.ts で位置に揃えてから照合する
 export function defaultSettings(): Settings {
   return {
     keys: {
@@ -190,8 +192,21 @@ const BUTTON_NAMES: Record<number, string> = {
   16: 'PS/Home',
 };
 
-export function padName(b: PadBinding): string {
-  if (b.kind === 'button') return BUTTON_NAMES[b.index] ?? `ボタン${b.index}`;
+/** 使っているパッドに合わせた呼び名（番号は位置基準：0=下 1=右 2=左 3=上） */
+const STYLE_NAMES: Record<Exclude<PadStyle, 'none'>, Record<number, string>> = {
+  ps: { 0: '×', 1: '○', 2: '□', 3: '△', 4: 'L1', 5: 'R1', 6: 'L2', 7: 'R2', 8: 'SHARE', 9: 'OPTIONS', 16: 'PS' },
+  nin: { 0: 'B', 1: 'A', 2: 'Y', 3: 'X', 4: 'L', 5: 'R', 6: 'ZL', 7: 'ZR', 8: '−ボタン', 9: '＋ボタン', 16: 'HOME' },
+  xbox: { 0: 'A', 1: 'B', 2: 'X', 3: 'Y', 4: 'LB', 5: 'RB', 6: 'LT', 7: 'RT', 8: 'View', 9: 'Menu', 16: 'Xbox' },
+};
+
+/** ボタン1つの呼び名。パッドがないときは「下ボタン(×/B)」のような汎用名 */
+export function buttonName(index: number, style: PadStyle = 'none'): string {
+  if (style !== 'none' && STYLE_NAMES[style][index]) return STYLE_NAMES[style][index];
+  return BUTTON_NAMES[index] ?? `ボタン${index}`;
+}
+
+export function padName(b: PadBinding, style: PadStyle = 'none'): string {
+  if (b.kind === 'button') return buttonName(b.index, style);
   const stick = b.index <= 1 ? '左スティック' : b.index <= 3 ? '右スティック' : `軸${b.index}`;
   const dirName =
     b.index % 2 === 0 ? (b.dir < 0 ? '←' : '→') : b.dir < 0 ? '↑' : '↓';

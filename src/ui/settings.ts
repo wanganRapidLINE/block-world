@@ -9,7 +9,7 @@ import {
   type Settings,
   type TouchPadMode,
 } from '../input/bindings';
-import { connectedPads } from '../input/gamepad';
+import { activePad, connectedPads, is8BitDo, padStyleOf, positionButtons, type PadStyle } from '../input/gamepad';
 
 const CAPTURE_TIMEOUT_MS = 8000;
 
@@ -40,6 +40,8 @@ export class SettingsScreen {
   private readonly padStatus = el<HTMLDivElement>('pad-status');
   private cancelCapture: (() => void) | null = null;
   private statusTimer = 0;
+  /** ボタン名の表記（使っているパッドに合わせる） */
+  private style: PadStyle = 'none';
 
   constructor(
     private readonly settings: Settings,
@@ -141,7 +143,7 @@ export class SettingsScreen {
       );
       row.insertCell().appendChild(
         this.chipList(
-          s.pad[action].map(padName),
+          s.pad[action].map((b) => padName(b, this.style)),
           (i) => s.pad[action].splice(i, 1),
           () => this.capturePad(action),
         ),
@@ -245,6 +247,12 @@ export class SettingsScreen {
   }
 
   private updatePadStatus(): void {
+    // 使っているパッドが変わったら、ボタン名をそのパッドの表記で出し直す
+    const style = padStyleOf(activePad()?.id);
+    if (style !== this.style) {
+      this.style = style;
+      this.render();
+    }
     const pads = connectedPads();
     if (pads.length === 0) {
       this.padStatus.textContent = 'ゲームパッド: 未検出（接続済みなら、どれかボタンを押すと認識されます）';
@@ -253,7 +261,13 @@ export class SettingsScreen {
     }
     const nonStandard = pads.some((p) => p.mapping !== 'standard');
     this.padStatus.textContent =
-      pads.map((p) => `ゲームパッド: ${p.id}（${p.mapping === 'standard' ? '標準配置' : '独自配置'}）`).join('\n') +
+      pads
+        .map(
+          (p) =>
+            `ゲームパッド: ${p.id}（${p.mapping === 'standard' ? '標準配置' : '独自配置'}` +
+            `${is8BitDo(p.id) ? '・A/Bの位置に合わせて自動で入れ替え' : ''}）`,
+        )
+        .join('\n') +
       (nonStandard ? '\n独自配置のパッドは初期の割り当てどおりに動かないことがあります。ボタンを割り当て直してください。' : '');
     this.padStatus.className = nonStandard ? 'note warn' : 'note';
   }
@@ -264,16 +278,18 @@ interface PadSnapshot {
   axes: number[];
 }
 
+// ボタンは位置基準（8BitDo の入れ替え・ハットスイッチ反映済み）で比べる
 function snapshot(p: Gamepad): PadSnapshot {
-  return { buttons: p.buttons.map((b) => b.pressed || b.value > 0.5), axes: [...p.axes] };
+  return { buttons: positionButtons(p), axes: [...p.axes] };
 }
 
 function detectNewInput(pad: Gamepad, base: PadSnapshot | undefined): PadBinding | null {
-  for (let i = 0; i < pad.buttons.length; i++) {
-    const b = pad.buttons[i];
-    if ((b.pressed || b.value > 0.5) && !base?.buttons[i]) return { kind: 'button', index: i };
+  const buttons = positionButtons(pad);
+  for (let i = 0; i < buttons.length; i++) {
+    if (buttons[i] && !base?.buttons[i]) return { kind: 'button', index: i };
   }
   for (let i = 0; i < pad.axes.length; i++) {
+    if (i === 9 && buttons.some((on, j) => on && j >= 12 && j <= 15)) continue; // ハットスイッチは十字キーとして拾う
     const v = pad.axes[i];
     const b0 = base?.axes[i] ?? 0;
     if (Math.abs(v) > 0.6 && Math.abs(v - b0) > 0.6) return { kind: 'axis', index: i, dir: v > 0 ? 1 : -1 };
